@@ -1,0 +1,7 @@
+tmp/
+output/
+
+temp.*
+
+*.mp4
+*.png

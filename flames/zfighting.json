@@ -1,0 +1,118 @@
+{
+   "pos": [
+      0.17,
+      -0.3,
+      1.58
+   ],
+   "rot" : [
+      -0.3,0.36,0
+   ],
+   "near": 0.1,
+   "far": 3,
+   "fov": 70,
+   "exposure": 2,
+   "functions": [
+      {
+         "name": "Plane 1",
+         "prob": 0.5,
+         "colour": [
+            1,
+            0,
+            0,
+            1
+         ],
+         "pre_trans": [
+            1,
+            0.0,
+            0,
+
+            0.0,
+            1,
+            0,
+
+            0,
+            0,
+            1,
+
+            0,
+            0.0,
+            0
+         ],
+         "post_trans": [
+            1.0,
+            0.0,
+            0,
+
+            0.0,
+            1.0,
+            0,
+
+            0,0,1,
+
+            0.0,
+            0.0,
+            0
+         ],
+         "variations": [
+            {
+               "name": "Linear",
+               "base": "RETURN(vec3(RANDOM, RANDOM, 0))",
+               "internal_vars": [],
+               "params": {
+               }
+            }
+         ]
+      },
+      {
+         "name": "Plane 2",
+         "prob": 0.5,
+         "colour": [
+            0.0,
+            0.9999847412109375,
+            0.0,
+            1
+         ],
+         "pre_trans": [
+            1,
+            0.0,
+            0,
+
+            0.0,
+            1,
+            0,
+
+            0,
+            0,
+            1,
+
+            0.0,
+            0.0,
+            0
+         ],
+         "post_trans": [
+            1.0,
+            0.0,
+            0,
+
+            0.0,
+            1.0,
+            0,
+
+            0,0,1,
+
+            0.0,
+            0.0,
+            0
+         ],
+         "variations": [
+            {
+               "name": "Linear",
+               "base": "RETURN(vec3(RANDOM, 0, RANDOM))",
+               "internal_vars": [],
+               "params": {
+               }
+            }
+         ]
+      }
+   ]
+}

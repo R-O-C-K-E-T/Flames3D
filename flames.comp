@@ -1,0 +1,89 @@
+#version 430
+
+#define PI 3.141592653589
+
+#define RETURN(expr) result += expr;
+#define RANDOM random(state)
+#define RAND_VEC vec3(random(state), random(state), random(state))
+
+layout(local_size_x = LOCAL_SIZE_X, local_size_y = LOCAL_SIZE_Y) in;
+
+struct Particle {
+	vec4 pos; // 16 w unused
+	vec4 col; // 16
+	uvec4 randState; // 16
+}; // 48 bytes
+
+layout (std140, binding = 0) readonly buffer InputBuffer {
+	Particle partIn [];
+};
+
+layout (std140, binding = 1) writeonly buffer OutputBuffer {
+	Particle partOut [];
+};
+
+
+layout (r32ui, binding = 0) uniform uimage3D histogramOut;
+layout (rgba16f, binding = 1) uniform writeonly image3D colourOut;
+
+uniform mat4 viewMat;
+
+vec3 textureSize = vec3(WIDTH, HEIGHT, DEPTH);
+
+ivec2 particles = ivec2(GLOBAL_SIZE_X, GLOBAL_SIZE_Y);
+
+
+uint TausStep(uint z, int S1, int S2, int S3, uint M) {
+    uint b = (((z << S1) ^ z) >> S2);
+    return (((z & M) << S3) ^ b);
+}
+
+uint LCGStep(uint z, uint A, uint C) {
+    return (A * z + C);
+}
+
+float random(inout uvec4 state) {
+    state.x = TausStep(state.x, 13, 19, 12, 4294967294);
+    state.y = TausStep(state.y, 2, 25, 4, 4294967288);
+    state.z = TausStep(state.z, 3, 11, 17, 4294967280);
+    state.w = LCGStep(state.w, 1664525, 1013904223);
+
+    return 2.3283064365387e-10 * float(state.x ^ state.y ^ state.z ^ state.w);
+}
+
+FUNCTIONS
+
+void main() {
+	int particle = int(gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * particles.x);
+
+	uvec4 state = partIn[particle].randState;
+
+	float accumulator = random(state);
+	
+	vec3 pos;
+	vec4 funcColour;
+	APPLY_FUNCTION
+
+	vec4 colour = mix(partIn[particle].col, vec4(funcColour.rgb, 1), funcColour.a);
+	vec4 coord = viewMat * vec4(pos, 1);
+	vec3 ndc = ((coord.xyz / coord.w) + 1) * 0.5;
+
+	
+
+	if (0 <= ndc.z && ndc.z <= 1) {
+		ivec3 pixel = ivec3(ndc * textureSize);
+
+		uint hits = imageAtomicAdd(histogramOut, pixel, uint(1));
+
+		float prop = fract(ndc.z * textureSize.z);
+
+		if (hits == 0 || prop < random(state)) {
+			imageStore(colourOut, pixel, colour);
+		}
+	}
+	
+
+	partOut[particle].randState = state;
+	partOut[particle].pos.xyz = pos;
+	partOut[particle].col = colour;
+}
