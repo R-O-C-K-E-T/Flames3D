@@ -550,7 +550,7 @@ class Renderer:
         vert = compile_shader(open('flames.vert').read(), GL_VERTEX_SHADER, defines)
         frag = compile_shader(open('flames.frag').read(), GL_FRAGMENT_SHADER, defines)
 
-        self.prog = shaders.compileProgram(vert, frag)
+        self.prog = shaders.compileProgram(vert, frag, validate=False)
 
         glDeleteShader(vert)
         glDeleteShader(frag)
@@ -561,6 +561,8 @@ class Renderer:
 
         self.factor_uniform = glGetUniformLocation(self.prog, 'factor')
         self.cross_section_uniform = glGetUniformLocation(self.prog, 'crossSection')
+
+        self.prog.check_validate()
 
         self._proj_params = None
 
