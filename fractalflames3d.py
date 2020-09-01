@@ -433,12 +433,16 @@ class Iterator:
         glUniformMatrix4fv(self.matrix_uniform, 1, True, view_proj_mat)
 
     def dump_histogram(self):
-        glBindTexture(GL_TEXTURE_3D, histogram)
+        glBindTexture(GL_TEXTURE_3D, self.histogram)
+
+        size = get_texture_size(self.histogram)
         return glGetTexImage(GL_TEXTURE_3D, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, np.empty(size[::-1], np.uint32))
     
     def dump_colour(self):
-        glBindTexture(GL_TEXTURE_3D, colour)
-        return glGetTexImage(GL_TEXTURE_3D, 0, GL_RGBA, GL_FLOAT, np.empty((*size, 4), np.float32))
+        glBindTexture(GL_TEXTURE_3D, self.colour)
+
+        size = get_texture_size(self.colour)
+        return glGetTexImage(GL_TEXTURE_3D, 0, GL_RGBA, GL_FLOAT, np.empty((*size[::-1], 4), np.float32))
 
     def cleanup(self):
         if self.prog is not None:
