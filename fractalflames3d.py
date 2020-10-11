@@ -134,15 +134,6 @@ def load_image(filename, texture=None):
     glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, *img.size, 0, GL_RGBA, GL_UNSIGNED_BYTE, data)
     return texture
 
-class Particle(Structure):
-    _fields_ = [
-        ('pos', c_float * 3),
-        ('pad1', c_float * 1),
-        ('col', c_float * 4),
-        ('randState', c_uint * 4),
-        #('pad2', c_float * 4),
-    ]
-
 def get_texture_size(texture):
     glBindTexture(GL_TEXTURE_3D, texture)
     width = glGetTexLevelParameteriv(GL_TEXTURE_3D, 0, GL_TEXTURE_WIDTH)
@@ -156,35 +147,6 @@ def fix_image_paths(flame, base_directory):
         for variation in func['variations']:
             for name, image in variation.get('images', {}).items():
                 variation['images'][name] = path.join(base_directory, image)
-
-'''def deep_equal(a, b):
-    if a is b:
-        return True
-
-    if type(a) == list and type(b) == list:
-        if len(a) != len(b):
-            print(a, b)
-            return False
-
-        val = all(deep_equal(item_a, item_b) for item_a, item_b in zip(a, b))
-        if not val:
-            print(a, b)
-        return val
-
-    if type(a) == dict and type(b) == dict:
-        if len(a) != len(b):
-            print(a, b)
-            return False
-
-        val = all(deep_equal(key_a, key_b) and deep_equal(val_a, val_b) for (key_a, val_a), (key_b, val_b) in zip(a.items(), b.items()))
-        if not val:
-            print(a, b)
-        return val
-
-    val = a == b
-    if not val:
-        print(a, b)
-    return val'''
 
 def check_flame_compatibility(flame_a, flame_b):
     if flame_a is flame_b:
@@ -232,6 +194,8 @@ def check_flame_identical(flame_a, flame_b):
 
     return flame_a == flame_b
 
+particle_dtype = np.dtype([('pos', np.float32, 3), ('pad1', np.uint32), ('col', np.float32, 4), ('randState', np.uint32, 4)])
+
 class Iterator:
     def __init__(self, histogram, colour, /, local_size=(16, 16), particles=(256, 256)):
         self.histogram = histogram
@@ -247,7 +211,6 @@ class Iterator:
         self.size = colour_size
 
         self.tick = 0
-        self.convergence_timer = None
 
         self.flame = None
 
@@ -270,13 +233,6 @@ class Iterator:
     def cycle(self):
         assert self.prog is not None
 
-        if self.convergence_timer is not None:
-            self.convergence_timer -= 1
-            if self.convergence_timer == 0:
-                self.clear()
-                self.convergence_timer = None
-
-
         glUseProgram(self.prog)
         glBindImageTexture(1, self.colour, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F)
         glBindImageTexture(0, self.histogram, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI)
@@ -295,26 +251,24 @@ class Iterator:
 
         self.tick += 1
 
-    def reset_particles(self):
+    def reset_particles(self, reconverge=False):
         N = self.particles[0] * self.particles[1]
+        particles = np.empty(N, particle_dtype)
 
-        positions = np.random.random((N, 3))
-        random_states = np.random.randint(1<<32, size=(N, 4), dtype=np.uint32)
+        particles['pos'] = np.random.random((N, 3))
+        particles['col'] = np.zeros((N,4), np.float32)
+        particles['randState'] = np.random.randint(1<<32, size=(N,4), dtype=np.uint32)
 
-        particle_data = (Particle * N)()
-        for particle, position, rand_state in zip(particle_data, positions, random_states):
-            particle.pos[0] = position[0]
-            particle.pos[1] = position[1]
-            particle.pos[2] = position[2]
-
-            particle.randState[0] = rand_state[0]
-            particle.randState[1] = rand_state[1]
-            particle.randState[2] = rand_state[2]
-            particle.randState[3] = rand_state[3]
+        particle_data = particles.tobytes()
 
         for buffer in self.particle_buffers:
             glBindBuffer(GL_ARRAY_BUFFER, buffer)
-            glBufferData(GL_ARRAY_BUFFER, sizeof(particle_data), particle_data, GL_STATIC_DRAW)
+            glBufferData(GL_ARRAY_BUFFER, len(particle_data), particle_data, GL_STATIC_DRAW)
+
+        if reconverge:
+            for _ in range(20):
+                self.cycle()
+            self.clear()
 
     def reload_program(self):
         if self.prog is not None:
@@ -347,9 +301,10 @@ class Iterator:
 
         self.set_flame_uniforms()
 
-    def clear(self):
+    def clear(self, full=False):
         # Not neccessary to clear colour data
-        #glClearTexImage(self.colour, 0, GL_RGBA, GL_FLOAT, c_float(0))
+        if full:
+            glClearTexImage(self.colour, 0, GL_RGBA, GL_FLOAT, c_float(0))
         
         glClearTexImage(self.histogram, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, c_uint(0))
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
@@ -362,8 +317,8 @@ class Iterator:
 
         glUseProgram(self.prog)
         for i, func in enumerate(self.flame['functions']):
-            glUniformMatrix4x3fv(glGetUniformLocation(self.prog, 'preTransforms[{}]'.format(i)), 1, False, func['pre_trans'])
-            glUniformMatrix4x3fv(glGetUniformLocation(self.prog, 'postTransforms[{}]'.format(i)), 1, False, func['post_trans'])
+            glUniformMatrix4x3fv(glGetUniformLocation(self.prog, 'preTransforms[{}]'.format(i)), 1, True, func['pre_trans'])
+            glUniformMatrix4x3fv(glGetUniformLocation(self.prog, 'postTransforms[{}]'.format(i)), 1, True, func['post_trans'])
 
             colour = func['colour'].copy()
             if len(colour) < 4:
@@ -408,21 +363,21 @@ class Iterator:
         prev, self.flame = self.flame, flame
         if check_flame_identical(prev, flame):
             return
-
-        self.clear()
-
+        
         if flame is None or len(flame['functions']) == 0:
             if self.prog is not None:
                 glDeleteProgram(self.prog)
                 self.prog = None
+            self.clear()
             return
 
+        needs_reconvergence = False
         if self.prog is None or flame['functions'] != prev['functions']:
             if check_flame_compatibility(prev, flame):
                 self.set_flame_uniforms()
             else:
                 self.reload_program()
-            self.convergence_timer = 20
+            needs_reconvergence = True
 
         proj_mat = projection_mat(self.size[0] / self.size[1], flame['near'], flame['far'], flame['fov'])
         view_mat = rotation_mat(flame['rot']).T @ translation_mat(-np.array(flame['pos']))
@@ -431,6 +386,11 @@ class Iterator:
 
         glUseProgram(self.prog)
         glUniformMatrix4fv(self.matrix_uniform, 1, True, view_proj_mat)
+
+        if needs_reconvergence:
+            for _ in range(20):
+                self.cycle()
+        self.clear()
 
     def dump_histogram(self):
         glBindTexture(GL_TEXTURE_3D, self.histogram)
@@ -443,6 +403,16 @@ class Iterator:
 
         size = get_texture_size(self.colour)
         return glGetTexImage(GL_TEXTURE_3D, 0, GL_RGBA, GL_FLOAT, np.empty((*size[::-1], 4), np.float32))
+
+    def dump_particles(self):
+        N = self.particles[0] * self.particles[1]
+        particles = np.empty(N, particle_dtype)
+
+        glGetBufferSubData(GL_ARRAY_BUFFER, 0, particles.nbytes, particles.data)
+        return particles
+
+    def dump_particle_positions(self):
+        return self.dump_particles()['pos']
 
     def cleanup(self):
         if self.prog is not None:
