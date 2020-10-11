@@ -71,7 +71,15 @@ if __name__ == '__main__':
         flame = copy.deepcopy(original_flame)
         t = i / frames
 
+        for func in flame['functions']:
+            func['pre_trans'] = np.array(func['pre_trans'])
+            func['post_trans'] = np.array(func['post_trans'])
+        
         exec(code, globals(), {})
+        
+        for func in flame['functions']:
+            func['pre_trans'] = func['pre_trans'].tolist()
+            func['post_trans'] = func['post_trans'].tolist()
 
         with open(os.path.join(tmp_folder, zero_pad(digits, i) + '.json'), 'w') as f:
             json.dump(flame, f)

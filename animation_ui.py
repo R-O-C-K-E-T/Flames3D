@@ -295,12 +295,20 @@ if __name__ == '__main__':
             flame['rot'] = rot.tolist()
 
             if code is not None:
+                for func in flame['functions']:
+                    func['pre_trans'] = np.array(func['pre_trans'])
+                    func['post_trans'] = np.array(func['post_trans'])
+
                 t = (time % frames) / frames
                 try:
                     exec(code, globals(), {})
                 except:
                     print_exc()
                     code = None
+                
+                for func in flame['functions']:
+                    func['pre_trans'] = func['pre_trans'].tolist()
+                    func['post_trans'] = func['post_trans'].tolist()
 
             fix_image_paths(flame, path.dirname(args.flame))
 
