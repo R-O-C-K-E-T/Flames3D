@@ -2,6 +2,8 @@
 
 A 3D Fractal Flame renderer that runs on the GPU.
 
+![](/render/bubble.png)
+
 
 To move around in the interactive tools the controls use WASD for XZ movement
 and QE for Y movement. For rotating the camera use the number pad.
